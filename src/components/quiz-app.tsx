@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ClipboardCopy, RotateCcw } from "lucide-react";
-import { QUESTIONS, formatAnswer, type Question } from "@/data/questions";
+import { LECTURES, formatAnswer, type Lecture, type Question } from "@/data/questions";
 import { cn } from "@/lib/cn";
 
 type Answers = Record<number, string>;
@@ -8,20 +8,32 @@ type Answers = Record<number, string>;
 type Stage = "start" | "quiz" | "done";
 
 export function QuizApp() {
+  const [lecture, setLecture] = useState<Lecture | null>(null);
   const [stage, setStage] = useState<Stage>("start");
   const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState<Answers>({});
   const [copied, setCopied] = useState(false);
 
-  const question = QUESTIONS[index];
-  const progress = ((index + (stage === "done" ? 1 : 0)) / QUESTIONS.length) * 100;
+  const questions = lecture?.questions ?? [];
+  const question = questions[index];
+  const progress = questions.length
+    ? ((index + (stage === "done" ? 1 : 0)) / questions.length) * 100
+    : 0;
   const currentValue = question ? (answers[question.id] ?? "") : "";
   const canAdvance = canSubmit(question, currentValue);
 
   const lines = useMemo(
-    () => QUESTIONS.map((q) => formatAnswer(q, answers[q.id] ?? "")),
-    [answers],
+    () => questions.map((q) => formatAnswer(q, answers[q.id] ?? "")),
+    [answers, questions],
   );
+
+  function begin(next: Lecture) {
+    setLecture(next);
+    setAnswers({});
+    setIndex(0);
+    setCopied(false);
+    setStage("quiz");
+  }
 
   function setCurrent(value: string) {
     if (!question) return;
@@ -30,7 +42,7 @@ export function QuizApp() {
 
   function next() {
     if (!canAdvance) return;
-    if (index >= QUESTIONS.length - 1) {
+    if (index >= questions.length - 1) {
       setStage("done");
       return;
     }
@@ -53,8 +65,10 @@ export function QuizApp() {
   }
 
   async function copyList() {
+    const header = lecture ? `Lecture ${lecture.number}` : "";
+    const body = lines.join("\n");
     try {
-      await navigator.clipboard.writeText(lines.join("\n"));
+      await navigator.clipboard.writeText(header ? `${header}\n${body}` : body);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1600);
     } catch {
@@ -71,12 +85,12 @@ export function QuizApp() {
               BIOL 1414
             </p>
             <h1 className="font-display text-2xl leading-tight font-medium tracking-tight text-navy sm:text-3xl">
-              Lecture 4 Quiz
+              {lecture && stage !== "start" ? `Lecture ${lecture.number} Quiz` : "Lecture Quizzes"}
             </h1>
           </div>
-          {stage !== "start" ? (
+          {stage !== "start" && lecture ? (
             <p className="font-mono text-sm text-muted tabular-nums">
-              {stage === "done" ? "Done" : `${index + 1} / ${QUESTIONS.length}`}
+              {stage === "done" ? "Done" : `${index + 1} / ${questions.length}`}
             </p>
           ) : null}
         </header>
@@ -97,9 +111,10 @@ export function QuizApp() {
         ) : null}
 
         {stage === "start" ? (
-          <StartCard onStart={() => setStage("quiz")} />
-        ) : stage === "done" ? (
+          <StartCard onStart={begin} />
+        ) : stage === "done" && lecture ? (
           <ResultsCard
+            lecture={lecture}
             lines={lines}
             copied={copied}
             onCopy={copyList}
@@ -113,7 +128,7 @@ export function QuizApp() {
             onBack={back}
             onNext={next}
             canAdvance={canAdvance}
-            isLast={index === QUESTIONS.length - 1}
+            isLast={index === questions.length - 1}
           />
         ) : null}
       </div>
@@ -121,37 +136,48 @@ export function QuizApp() {
   );
 }
 
-function StartCard({ onStart }: { onStart: () => void }) {
+function StartCard({ onStart }: { onStart: (lecture: Lecture) => void }) {
   return (
     <section className="rounded-xl border border-line bg-surface p-6 shadow-[0_12px_40px_-24px_rgba(27,54,93,0.45)] sm:p-8">
-      <p className="font-display text-xl text-navy">Chemical Foundation of Life</p>
+      <p className="font-display text-xl text-navy">Choose a lecture</p>
       <p className="mt-3 max-w-prose text-muted">
-        Twenty questions, one at a time. Your answers are kept on this page only.
-        The last screen is a simple numbered list — <span className="font-mono text-ink">1 A</span>,{" "}
+        One question at a time. The last screen is a simple numbered list —{" "}
+        <span className="font-mono text-ink">1 A</span>,{" "}
         <span className="font-mono text-ink">2 C</span>, and so on.
       </p>
-      <ul className="mt-6 space-y-2 text-sm text-ink">
+      <ul className="mt-4 space-y-1 text-sm text-ink">
         <li>Multiple choice records the letter.</li>
         <li>True / false uses A = True, B = False.</li>
         <li>Short answers record the text you type.</li>
       </ul>
-      <button
-        type="button"
-        onClick={onStart}
-        className="mt-8 inline-flex min-h-11 items-center justify-center rounded-md bg-navy px-5 text-sm font-medium text-surface transition-opacity duration-150 hover:opacity-90"
-      >
-        Begin
-      </button>
+      <div className="mt-6 grid gap-3">
+        {LECTURES.map((lec) => (
+          <button
+            key={lec.id}
+            type="button"
+            onClick={() => onStart(lec)}
+            className="rounded-lg border border-line bg-bg px-4 py-4 text-left transition-colors duration-150 hover:border-navy/30"
+          >
+            <p className="font-mono text-xs tracking-wide text-teal uppercase">
+              Lecture {lec.number} · {lec.questions.length} questions
+            </p>
+            <p className="mt-1 font-display text-lg text-navy">{lec.title}</p>
+            <p className="mt-1 text-sm text-muted">{lec.blurb}</p>
+          </button>
+        ))}
+      </div>
     </section>
   );
 }
 
 function ResultsCard({
+  lecture,
   lines,
   copied,
   onCopy,
   onRestart,
 }: {
+  lecture: Lecture;
   lines: string[];
   copied: boolean;
   onCopy: () => void;
@@ -160,7 +186,9 @@ function ResultsCard({
   return (
     <section className="rounded-xl border border-line bg-surface p-6 sm:p-8">
       <h2 className="font-display text-2xl text-navy">Your answers</h2>
-      <p className="mt-1 text-sm text-muted">Simple list — question number, then your answer.</p>
+      <p className="mt-1 text-sm text-muted">
+        Lecture {lecture.number} — question number, then your answer.
+      </p>
       <ol className="mt-6 space-y-1 font-mono text-base leading-relaxed text-ink">
         {lines.map((line) => (
           <li key={line}>{line}</li>

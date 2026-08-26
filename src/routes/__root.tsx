@@ -3,7 +3,7 @@ import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import appCss from "../styles.css?url";
 
-const APP_NAME = "BIOL 1414 Lecture 4 Quiz";
+const APP_NAME = "BIOL 1414 Quiz";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -13,7 +13,7 @@ export const Route = createRootRoute({
       { title: APP_NAME },
       {
         name: "description",
-        content: "One-question-at-a-time quiz for BIOL 1414 Lecture 4 — Chemical Foundation of Life.",
+        content: "One-question-at-a-time quizzes for BIOL 1414 lecture decks.",
       },
       { name: "theme-color", content: "#1B365D" },
     ],
